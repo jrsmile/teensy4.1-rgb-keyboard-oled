@@ -48,7 +48,7 @@ volatile int keyStatus[ROW_COUNT*COL_COUNT];
 // LED Stuff 6x21 Matrix
 const int numPins = 6;
 byte pinList[numPins] = {24, 25, 26, 27, 28, 29};
-const int ledsPerStrip = 27;
+const int ledsPerStrip = 21;
 DMAMEM int displayMemory[ledsPerStrip * numPins * 3 / 4];
 int drawingMemory[ledsPerStrip * numPins * 3 / 4];
 const int config = WS2811_GRB | WS2811_800kHz;
@@ -61,7 +61,6 @@ const int knobSW = 30;
 int knobSWVal;
 int knobSWlast;
 int knobVal;
-boolean bCW;
 Encoder knob(knobCLK, knobDT);
 
 // USB Host Stuff
@@ -157,10 +156,7 @@ void setup() {
   }
 
   // Encoder Setup
-  pinMode(knobCLK,INPUT_PULLUP);
-  pinMode(knobDT,INPUT_PULLUP);
   pinMode(knobSW,INPUT_PULLUP);
-  knobCLKlast = digitalRead(knobCLK);
   knobSWlast = digitalRead(knobSW);
   
   // OLED Setup
@@ -437,11 +433,11 @@ void scanEncoder(){
     knobVal = knob.read();
     if (knobVal != 0) {
       if (knobVal >= 1) {
-        Keyboard.press(KEY_MEDIA_VOLUME_INC);
-        Keyboard.release(KEY_MEDIA_VOLUME_INC);
-      } else {
         Keyboard.press(KEY_MEDIA_VOLUME_DEC);
         Keyboard.release(KEY_MEDIA_VOLUME_DEC);
+      } else {
+        Keyboard.press(KEY_MEDIA_VOLUME_INC);
+        Keyboard.release(KEY_MEDIA_VOLUME_INC);
       }
       knob.write(0);
     }
