@@ -4,7 +4,7 @@
 #include "USBHost_t36.h"
 #include <Smoothed.h>
 #include <OctoWS2811.h>
-
+#include <Encoder.h>
 /*
  * Programming by Jan Reiss, 2020
  * Released to public domain
@@ -20,7 +20,7 @@
 
 #define TIME_CAL_1 2000 // joystick calibration time
 
-int id1, id2, id3; // threads
+int id1, id2, id3, id4; // threads
 
 // OLED Stuff
 IntervalTimer idleTimer; // Global keyboard idle timer
@@ -45,7 +45,7 @@ int layer_0[] = {KEY_Q, KEY_W, KEY_E, MODIFIERKEY_ALT,
 volatile int currentRow = 0;
 volatile int keyStatus[ROW_COUNT*COL_COUNT];
 
-// LED Stuff 6x27 Matrix
+// LED Stuff 6x21 Matrix
 const int numPins = 6;
 byte pinList[numPins] = {24, 25, 26, 27, 28, 29};
 const int ledsPerStrip = 27;
@@ -53,6 +53,16 @@ DMAMEM int displayMemory[ledsPerStrip * numPins * 3 / 4];
 int drawingMemory[ledsPerStrip * numPins * 3 / 4];
 const int config = WS2811_GRB | WS2811_800kHz;
 OctoWS2811 leds(ledsPerStrip, displayMemory, drawingMemory, config, numPins, pinList);
+
+// Encoder Stuff
+const int knobCLK = 0;
+const int knobDT = 1;
+const int knobSW = 30;
+int knobSWVal;
+int knobSWlast;
+int knobVal;
+boolean bCW;
+Encoder knob(knobCLK, knobDT);
 
 // USB Host Stuff
 USBHost myusb;
@@ -145,12 +155,22 @@ void setup() {
   for (i=0;i<ROW_COUNT*COL_COUNT;i++){
     keyStatus[i]=0;
   }
+
+  // Encoder Setup
+  pinMode(knobCLK,INPUT_PULLUP);
+  pinMode(knobDT,INPUT_PULLUP);
+  pinMode(knobSW,INPUT_PULLUP);
+  knobCLKlast = digitalRead(knobCLK);
+  knobSWlast = digitalRead(knobSW);
+  
+  // OLED Setup
   u8g2.setBusClock(12000000); // ca. 100 FPS
   u8g2.enableUTF8Print();
   u8g2.begin(); // Init Display
   u8g2.setContrast(0);
   
   id2 = threads.addThread(scanKeys);
+  id3 = threads.addThread(scanEncoder);
   Mouse.screenSize(SCREEN_WIDTH, SCREEN_HIGHT);  // configure screen size
   rsvx_smoothed.begin(SMOOTHED_EXPONENTIAL, 10);
   rsvy_smoothed.begin(SMOOTHED_EXPONENTIAL, 10);
@@ -168,20 +188,22 @@ void setup() {
 #define WHITE  0xFFFFFF
 }
 
+
 void loop() 
 {
-    int microsec = 2000000 / leds.numPixels();  // change them all in 2 seconds
+    
+    // int microsec = 2000000 / leds.numPixels();  // change them all in 2 seconds
 
     // uncomment for voltage controlled speed
     // millisec = analogRead(A9) / 40;
 
-    colorWipe(RED, microsec);
-    colorWipe(GREEN, microsec);
-    colorWipe(BLUE, microsec);
-    colorWipe(YELLOW, microsec);
-    colorWipe(PINK, microsec);
-    colorWipe(ORANGE, microsec);
-    colorWipe(WHITE, microsec);
+    // colorWipe(RED, microsec);
+    // colorWipe(GREEN, microsec);
+    // colorWipe(BLUE, microsec);
+    // colorWipe(YELLOW, microsec);
+    // colorWipe(PINK, microsec);
+    // colorWipe(ORANGE, microsec);
+    // colorWipe(WHITE, microsec);
   
     myusb.Task();
     PrintDeviceListChanges();
@@ -410,6 +432,33 @@ void loop()
   }
 }
 
+void scanEncoder(){
+    while(1) {
+    knobVal = knob.read();
+    if (knobVal != 0) {
+      if (knobVal >= 1) {
+        Keyboard.press(KEY_MEDIA_VOLUME_INC);
+        Keyboard.release(KEY_MEDIA_VOLUME_INC);
+      } else {
+        Keyboard.press(KEY_MEDIA_VOLUME_DEC);
+        Keyboard.release(KEY_MEDIA_VOLUME_DEC);
+      }
+      knob.write(0);
+    }
+    knobSWVal = digitalRead(knobSW);
+    if (knobSWVal != knobSWlast) {
+      if (knobSWVal){
+        
+      } else {
+        Keyboard.press(KEY_MEDIA_MUTE);
+        Keyboard.release(KEY_MEDIA_MUTE);
+      }
+      knobSWlast = knobSWVal;
+    }
+    threads.yield();
+    }
+}
+
 /*
  * Scan keyboard matrix, results stored in keyStatus array
  * 
@@ -502,7 +551,6 @@ void keyRelease(int keyCode){
     u8g2.setFont(u8g2_font_unifont_t_latin); // choose a suitable font
     u8g2.sendBuffer();          // transfer internal memory to the display
     idleTimer.begin(welcome,1000 * 1000 * 1);
-    PowerSaveTimer.begin(poweroff,1000 * 1000 * 10);
   }
 }
 
@@ -601,6 +649,7 @@ void welcome()  {
   u8g2.drawStr(0,48,"Activating LEDs...");  // write something to the internal memory
   u8g2.drawStr(0,64,"initialization done.");  // write something to the internal memory
   u8g2.sendBuffer();          // transfer internal memory to the display
+  PowerSaveTimer.begin(poweroff,1000 * 1000 * 10);
 }
 
 void poweroff()  {
